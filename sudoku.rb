@@ -1,6 +1,8 @@
+require 'io/console'
+
 #
 # require 'sudoku'
-# puts Sudoku.solve(Sudoku::Puzzle.new(File.readlines('test.txt'))) 
+# puts Sudoku.solve(Sudoku::Puzzle.new(File.readlines('sudokuGrid.txt')))
 #
 module Sudoku
 
@@ -66,7 +68,7 @@ class Puzzle
 		6,6,6,7,7,7,8,8,8,6,6,6,7,7,7,8,8,8,6,6,6,7,7,7,8,8,8
 	].freeze
 	
-	# For each cell whose value is unknown, this method
+	# For each cell whose value is unknown
 	# Yield gives row, col & box to an associated block 
 	def each_unknown
 		0.upto 8 do |row|
@@ -128,114 +130,34 @@ end
 class Impossible < StandardError
 end
 
-#
-# This method scans a Puzzle, looking for unknown cells that have only
-# a single possible value. If it finds any, it sets their value. Since
-# setting a cell alters the possible values for other cells, it
-# continues scanning until it has scanned the entire puzzle without
-# finding any cells whose value it can set. 
-#
-# This method returns three values. If it solves the puzzle, all three
-# values are nil. Otherwise, the first two values returned are the row and
-# column of a cell whose value is still unknown. The third value is the
-# set of values possible at that row and column. This is a minimal set of
-# possible values: there is no unknown cell in the puzzle that has fewer
-# possible values. This complex return value enables a useful heuristic
-# in the solve() method: that method can guess at values for cells where
-# the guess is most likely to be correct. 
-#
-# This method raises Impossible if it finds a cell for which there are
-# no possible values. This can happen if the puzzle is over-constrained,
-# or if the solve() method below has made an incorrect guess. 
-#
-# This method mutates the specified Puzzle object in place.
-# If has_duplicates? is false on entry, then it will be false on exit. 
-#
+# For each empty cell we look if there is only one possibility. Repeat until
+# we cant find any empty cell with only one possibilty. The sudoku will
+# be solved if it's not a "Diabolic" sudoku.
 def Sudoku.scan(puzzle)
-	unchanged = false # This is our loop variable.
-
-	# Loop until we've scanned the whole board without making a change.
+	unchanged = false
+	
 	until unchanged
-		unchanged = true		# Assume no cells will be changed this time
-		rmin,cmin,pmin = nil 	# Track cell with minimal possible set
-		min = 10				# More than the maximal number of possibilities
+		unchanged = true
 
 		# Loop through cells whose value is unknown.
 		puzzle.each_unknown do |row, col, box|
-			# Find the set of values that could go in this cell
 			p = puzzle.possible(row, col, box)
-
-			# Branch based on the size of the set p.
-			# We care about 3 cases: p.size==0, p.size==1, and p.size > 1.
 			case p.size
 			when 0		# No possible values means the puzzle is over-constrained
 				raise Impossible
-			when 1 		# We've found a unique value, so set it in the grid
-				puzzle[row,col] = p[0] 	# Set that position on the grid to the value 
-				unchanged = false 		# Note that we've made a change
-			else # For any other number of possibilities
-				# Keep track of the smallest set of possibilities.
-				# But don't bother if we're going to repeat this loop. 
-				if unchanged && p.size < min
-					min = p.size 						# Current smallest size
-					rmin, cmin, pmin = row, col, p 		# Note parallel assignment
-				end
+			when 1 		# We've found a unique value
+				puzzle[row,col] = p[0]
+				unchanged = false
 			end
 		end
 	end
-	# Return the cell with the minimal set of possibilities. # Note multiple return values.
-	return rmin, cmin, pmin
 end
 
 
-
-# Solve a Sudoku puzzle using simple logic, if possible, but fall back 
-# on brute-force when necessary. This is a recursive method. It either 
-# returns a solution or raises an exception. The solution is returned 
-# as a new Puzzle object with no unknown cells. This method does not 
-# modify the Puzzle it is passed. Note that this method cannot detect 
-# an under-constrained puzzle.
 def Sudoku.solve(puzzle)
 	# Make a private copy of the puzzle that we can modify. 
 	puzzle = puzzle.dup
-
-	# Use logic to fill in as much of the puzzle as we can.
-	# This method mutates the puzzle we give it, but always leaves it valid. 
-	# It returns a row, a column, and set of possible values at that cell. 
-	# Note parallel assignment of these return values to three variables.
-	r,c,p = scan(puzzle)
-
-	# If we solved it with logic, return the solved puzzle. 
-	return puzzle if r == nil
-
-	# Otherwise, try each of the values in p for cell [r,c].
-	# Since we're picking from a set of possible values, the guess leaves
-	# the puzzle in a valid state. The guess will either lead to a solution 
-	# or to an impossible puzzle. We'll know we have an impossible
-	# puzzle if a recursive call to scan throws an exception. If this happens 
-	# we need to try another guess, or re-raise an exception if we've tried 
-	# all the options we've got.
-	p.each do |guess| 			# For each value in the set of possible values
-		puzzle[r,c] = guess 	# Guess the value
-
-		begin
-			# Now try (recursively) to solve the modified puzzle.
-			# This recursive invocation will call scan() again to apply logic
-			# to the modified board, and will then guess another cell if needed. 
-			# Remember that solve() will either return a valid solution or
-			# raise an exception.
-			return solve(puzzle) 	# If it returns, we just return the solution
-		rescue Impossible
-			next					# If it raises an exception, try the next guess
-		end
-	end
-	
-	# If we get here, then none of our guesses worked out 
-	# so we must have guessed wrong sometime earlier. 
-	raise Impossible
-	end 
+	scan(puzzle)
+	return puzzle
 end
-
-
-
-
+end
